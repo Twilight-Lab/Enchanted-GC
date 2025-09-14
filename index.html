@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enchanted Golden Carrot Price</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Dark background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #e2e8f0;
+            padding: 2rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="flex flex-col md:flex-row md:space-x-8 items-center md:items-start w-full max-w-4xl">
+        <!-- Card 1: Crafted Price -->
+        <div class="bg-gray-800 p-8 rounded-xl shadow-lg w-full mb-8 md:mb-0 text-center border-2 border-gray-700 flex-shrink-0">
+            <h1 class="text-3xl font-bold mb-4 text-yellow-300">Crafted Price</h1>
+            <p class="mb-6 text-gray-400">
+                Calculated from the instant sell price of Enchanted Carrots.
+            </p>
+
+            <!-- Display area for the price and status messages -->
+            <div id="crafted-status-message" class="text-lg font-semibold text-gray-400">
+                Fetching data...
+            </div>
+            <div id="crafted-price-container" class="mt-4 hidden">
+                <p class="text-2xl font-bold text-green-400 mb-2">Price per item:</p>
+                <div class="text-4xl font-extrabold text-white" id="crafted-golden-carrot-price"></div>
+                <p class="mt-2 text-sm text-gray-500">Based on the formula: 128 Enchanted Carrots + 480 Coins</p>
+            </div>
+            <div id="crafted-error-message" class="mt-4 text-red-400 font-semibold hidden"></div>
+        </div>
+
+        <!-- Card 2: Instant Buy Price -->
+        <div class="bg-gray-800 p-8 rounded-xl shadow-lg w-full mb-8 md:mb-0 text-center border-2 border-gray-700 flex-shrink-0">
+            <h1 class="text-3xl font-bold mb-4 text-yellow-300">Instant Buy Price</h1>
+            <p class="mb-6 text-gray-400">
+                Fetched directly from the Hypixel Bazaar API.
+            </p>
+
+            <!-- Display area for the price and status messages -->
+            <div id="buy-status-message" class="text-lg font-semibold text-gray-400">
+                Fetching data...
+            </div>
+            <div id="buy-price-container" class="mt-4 hidden">
+                <p class="text-2xl font-bold text-green-400 mb-2">Price per item:</p>
+                <div class="text-4xl font-extrabold text-white" id="buy-golden-carrot-price"></div>
+                <p class="mt-2 text-sm text-gray-500">Based on the Bazaar instant buy value</p>
+            </div>
+            <div id="buy-error-message" class="mt-4 text-red-400 font-semibold hidden"></div>
+        </div>
+
+        <!-- Card 3: Profit/Loss -->
+        <div class="bg-gray-800 p-8 rounded-xl shadow-lg w-full text-center border-2 border-gray-700 flex-shrink-0">
+            <h1 class="text-3xl font-bold mb-4 text-purple-300">Profit/Loss</h1>
+            <p class="mb-6 text-gray-400">
+                Calculated by subtracting the crafted price from the instant buy price.
+            </p>
+
+            <!-- Display area for the price and status messages -->
+            <div id="profit-status-message" class="text-lg font-semibold text-gray-400">
+                Awaiting prices...
+            </div>
+            <div id="profit-container" class="mt-4 hidden">
+                <p class="text-2xl font-bold text-gray-200 mb-2">Your Profit/Loss:</p>
+                <div class="text-4xl font-extrabold" id="profit-loss-amount"></div>
+                <p class="mt-2 text-sm text-gray-500">A positive value means profit, a negative value is a loss.</p>
+            </div>
+            <div id="profit-error-message" class="mt-4 text-red-400 font-semibold hidden"></div>
+        </div>
+    </div>
+
+    <button id="refresh-button" class="mt-8 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full shadow-lg transition-transform transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800">
+        Refresh Prices
+    </button>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Crafted price elements
+            const craftedStatusMessage = document.getElementById('crafted-status-message');
+            const craftedPriceContainer = document.getElementById('crafted-price-container');
+            const craftedGoldenCarrotPriceEl = document.getElementById('crafted-golden-carrot-price');
+            const craftedErrorMessage = document.getElementById('crafted-error-message');
+
+            // Buy price elements
+            const buyStatusMessage = document.getElementById('buy-status-message');
+            const buyPriceContainer = document.getElementById('buy-price-container');
+            const buyGoldenCarrotPriceEl = document.getElementById('buy-golden-carrot-price');
+            const buyErrorMessage = document.getElementById('buy-error-message');
+            
+            // Profit/Loss elements
+            const profitStatusMessage = document.getElementById('profit-status-message');
+            const profitContainer = document.getElementById('profit-container');
+            const profitLossAmountEl = document.getElementById('profit-loss-amount');
+            const profitErrorMessage = document.getElementById('profit-error-message');
+
+            const refreshButton = document.getElementById('refresh-button');
+
+            const API_URL = 'https://api.hypixel.net/skyblock/bazaar';
+            const ENCHANTED_CARROT_ITEM = 'ENCHANTED_CARROT';
+            const ENCHANTED_GOLDEN_CARROT_ITEM = 'ENCHANTED_GOLDEN_CARROT';
+            const NUM_CARROTS = 128;
+            const COIN_COST = 480;
+
+            const formatPrice = (price) => {
+                return new Intl.NumberFormat('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }).format(price);
+            };
+
+            const calculateProfit = (craftedPrice, buyPrice) => {
+                const profit = buyPrice - craftedPrice;
+                profitLossAmountEl.textContent = `${formatPrice(profit)} Coins`;
+
+                // Change color based on profit or loss
+                if (profit > 0) {
+                    profitLossAmountEl.classList.remove('text-red-400', 'text-white');
+                    profitLossAmountEl.classList.add('text-green-400');
+                } else if (profit < 0) {
+                    profitLossAmountEl.classList.remove('text-green-400', 'text-white');
+                    profitLossAmountEl.classList.add('text-red-400');
+                } else {
+                    profitLossAmountEl.classList.remove('text-green-400', 'text-red-400');
+                    profitLossAmountEl.classList.add('text-white');
+                }
+
+                profitContainer.classList.remove('hidden');
+                profitStatusMessage.classList.add('hidden');
+            };
+
+            const fetchAndCalculatePrice = async () => {
+                // Show loading state and hide previous results for all cards
+                craftedStatusMessage.textContent = 'Fetching data...';
+                craftedStatusMessage.classList.remove('hidden');
+                craftedPriceContainer.classList.add('hidden');
+                craftedErrorMessage.classList.add('hidden');
+
+                buyStatusMessage.textContent = 'Fetching data...';
+                buyStatusMessage.classList.remove('hidden');
+                buyPriceContainer.classList.add('hidden');
+                buyErrorMessage.classList.add('hidden');
+                
+                profitStatusMessage.textContent = 'Awaiting prices...';
+                profitStatusMessage.classList.remove('hidden');
+                profitContainer.classList.add('hidden');
+                profitErrorMessage.classList.add('hidden');
+                
+                refreshButton.disabled = true;
+
+                try {
+                    const response = await fetch(API_URL);
+
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+
+                    const data = await response.json();
+
+                    if (!data.success) {
+                        throw new Error('API call was not successful.');
+                    }
+                    
+                    let craftedPrice, buyPrice;
+                    let hasError = false;
+
+                    // --- Handle Crafted Price Calculation ---
+                    const enchantedCarrotProduct = data.products[ENCHANTED_CARROT_ITEM];
+                    if (!enchantedCarrotProduct || !enchantedCarrotProduct.sell_summary || enchantedCarrotProduct.sell_summary.length === 0) {
+                        craftedErrorMessage.textContent = `Could not find instant sell price for ${ENCHANTED_CARROT_ITEM}.`;
+                        craftedErrorMessage.classList.remove('hidden');
+                        craftedStatusMessage.classList.add('hidden');
+                        hasError = true;
+                    } else {
+                        const instantSellPrice = enchantedCarrotProduct.sell_summary[0].pricePerUnit;
+                        craftedPrice = (instantSellPrice * NUM_CARROTS) + COIN_COST;
+                        craftedGoldenCarrotPriceEl.textContent = `${formatPrice(craftedPrice)} Coins`;
+                        craftedPriceContainer.classList.remove('hidden');
+                        craftedStatusMessage.classList.add('hidden');
+                    }
+
+                    // --- Handle Instant Buy Price Calculation ---
+                    const enchantedGoldenCarrotProduct = data.products[ENCHANTED_GOLDEN_CARROT_ITEM];
+                    if (!enchantedGoldenCarrotProduct || !enchantedGoldenCarrotProduct.buy_summary || enchantedGoldenCarrotProduct.buy_summary.length === 0) {
+                        buyErrorMessage.textContent = `Could not find instant buy price for ${ENCHANTED_GOLDEN_CARROT_ITEM}.`;
+                        buyErrorMessage.classList.remove('hidden');
+                        buyStatusMessage.classList.add('hidden');
+                        hasError = true;
+                    } else {
+                        buyPrice = enchantedGoldenCarrotProduct.buy_summary[0].pricePerUnit;
+                        buyGoldenCarrotPriceEl.textContent = `${formatPrice(buyPrice)} Coins`;
+                        buyPriceContainer.classList.remove('hidden');
+                        buyStatusMessage.classList.add('hidden');
+                    }
+
+                    // --- Calculate Profit/Loss if both prices are available ---
+                    if (craftedPrice !== undefined && buyPrice !== undefined) {
+                        calculateProfit(craftedPrice, buyPrice);
+                    } else {
+                        profitErrorMessage.textContent = `Cannot calculate profit. Missing one or both prices.`;
+                        profitErrorMessage.classList.remove('hidden');
+                        profitStatusMessage.classList.add('hidden');
+                    }
+                    
+                } catch (error) {
+                    // Handle and display any general errors
+                    craftedErrorMessage.textContent = `Error: ${error.message}. Please try again later.`;
+                    craftedErrorMessage.classList.remove('hidden');
+                    craftedStatusMessage.classList.add('hidden');
+
+                    buyErrorMessage.textContent = `Error: ${error.message}. Please try again later.`;
+                    buyErrorMessage.classList.remove('hidden');
+                    buyStatusMessage.classList.add('hidden');
+
+                    profitErrorMessage.textContent = `Error: ${error.message}. Please try again later.`;
+                    profitErrorMessage.classList.remove('hidden');
+                    profitStatusMessage.classList.add('hidden');
+
+                } finally {
+                    refreshButton.disabled = false;
+                }
+            };
+
+            // Fetch prices on initial page load
+            fetchAndCalculatePrice();
+
+            // Add event listener to the refresh button
+            refreshButton.addEventListener('click', fetchAndCalculatePrice);
+        });
+    </script>
+
+</body>
+</html>
